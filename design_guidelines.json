@@ -1,0 +1,128 @@
+{
+  "theme": "light",
+  "archetype": "1 (Organic & Earthy)",
+  "brand": {
+    "company_name": "AJVJ Hidropónicos SPR de RI de CV",
+    "logo_text": "AJVJ HIDRO",
+    "header_logo_style": "Rounded square icon (rounded-xl), bg-[#2d4a12] text-white flex items-center justify-center w-12 h-12 text-center text-[10px] leading-tight font-bold tracking-tighter shadow-sm"
+  },
+  "typography": {
+    "font_family": {
+      "headings": "'Work Sans', sans-serif",
+      "body": "'IBM Plex Sans', sans-serif",
+      "mono": "'IBM Plex Mono', monospace"
+    },
+    "hierarchy": {
+      "h1": "text-3xl md:text-4xl tracking-tight font-semibold text-[#16210b]",
+      "h2": "text-2xl tracking-tight font-medium text-[#16210b]",
+      "h3": "text-xl tracking-tight font-medium text-[#16210b]",
+      "h4": "text-lg tracking-tight font-medium text-[#16210b]",
+      "body": "text-sm md:text-base leading-relaxed text-[#16210b]",
+      "labels_overlines": "text-xs tracking-[0.2em] uppercase font-semibold text-[#4d5e42]"
+    },
+    "links": {
+      "google_fonts_url": "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Work+Sans:wght@400;500;600;700&display=swap"
+    }
+  },
+  "colors": {
+    "primary": "#2d4a12",
+    "primary_hover": "#3d6518",
+    "secondary": "#4d7a20",
+    "accent_1": "#6a9e35",
+    "accent_2": "#8fc050",
+    "background_app": "#f4f8ec",
+    "background_surface": "#ffffff",
+    "background_subtle": "#deedc0",
+    "text_main": "#16210b",
+    "text_muted": "#4d5e42",
+    "border_color": "#deedc0",
+    "tomato_crop": "#c2410c",
+    "cucumber_crop": "#6a9e35",
+    "pdf_gradient": {
+      "start": "#2d4a12",
+      "end": "#4d7a20"
+    }
+  },
+  "spacing_and_layout": {
+    "container_padding": "p-6 md:p-8",
+    "bento_grid": {
+      "type": "Control Room Grid",
+      "kpi_row": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6",
+      "main_charts": "grid grid-cols-1 lg:grid-cols-6 gap-6",
+      "chart_wide": "col-span-1 lg:col-span-4",
+      "chart_square": "col-span-1 lg:col-span-2",
+      "chart_half": "col-span-1 lg:col-span-3"
+    },
+    "surfaces": {
+      "cards": "bg-[#ffffff] border border-[#deedc0] rounded-lg shadow-[0_2px_10px_rgba(45,74,18,0.04)] transition-all duration-200 hover:shadow-[0_4px_20px_rgba(45,74,18,0.08)]",
+      "header": "sticky top-0 z-50 bg-[#f4f8ec]/80 backdrop-blur-xl border-b border-[#deedc0] px-6 py-4 flex items-center justify-between",
+      "table_container": "w-full overflow-x-auto rounded-lg border border-[#deedc0] bg-white"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#2d4a12] text-white hover:bg-[#3d6518] rounded-md px-4 py-2 font-medium transition-colors focus:ring-2 focus:ring-[#8fc050] outline-none shadow-sm",
+      "secondary": "bg-[#deedc0] text-[#2d4a12] hover:bg-[#8fc050] hover:text-white rounded-md px-4 py-2 font-medium transition-colors focus:ring-2 focus:ring-[#8fc050]",
+      "destructive": "bg-red-50 text-red-700 border border-red-200 hover:bg-red-600 hover:text-white rounded-md px-4 py-2 transition-colors",
+      "ghost": "bg-transparent text-[#2d4a12] hover:bg-[#deedc0] rounded-md px-4 py-2 transition-colors"
+    },
+    "inputs": {
+      "default": "border border-[#deedc0] rounded-md bg-white px-3 py-2 text-sm text-[#16210b] placeholder-[#4d5e42]/60 focus:outline-none focus:ring-2 focus:ring-[#6a9e35] focus:border-transparent transition-all"
+    },
+    "tables": {
+      "header_cell": "px-4 py-3 bg-[#f4f8ec] text-xs font-semibold tracking-wider text-[#4d5e42] uppercase border-b border-[#deedc0] whitespace-nowrap",
+      "body_row": "border-b border-[#deedc0] hover:bg-[#f4f8ec]/50 transition-colors",
+      "body_cell": "px-4 py-3 text-sm text-[#16210b] whitespace-nowrap"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "stroke_width": 1.5,
+      "color_default": "#2d4a12"
+    }
+  },
+  "features_and_instructions": {
+    "dashboard": {
+      "kpi_format": "All monetary values formatted as MXN with 2 decimals. (e.g., $ 12,345.00)",
+      "charts": "Use Recharts. Tooltips must have `#ffffff` background and `#deedc0` border. Doughnut charts use `tomato_crop` (#c2410c) and `cucumber_crop` (#6a9e35) colors."
+    },
+    "nueva_remision": {
+      "form_layout": "Split into logical sections (Client, Transport, Products). Use a dynamic table for product lines.",
+      "signature_pad": "Implement using `react-signature-canvas`. Provide a clear 'Limpiar' (Clear) button. Save as base64.",
+      "drafts": "Implement localStorage draft saving. Show a small 'Borrador guardado' indicator."
+    },
+    "historial": {
+      "filters": "Include filters by Date range, Client, Status, and Crop.",
+      "cards": "Display remisiones as a data table on desktop, and dense cards on mobile, with 'Ver PDF' and 'Eliminar' actions."
+    },
+    "clientes": {
+      "rfc_parsing": "Provide a text input for pasting fiscal text; parse the RFC automatically if possible, or provide structured fields.",
+      "tracking": "Include tabs in client detail view for 'Pagos' (Payments) and 'Cajas Vacías' (Empty box returns)."
+    },
+    "por_modulo": {
+      "stats": "Display production cycles and yield metrics per module (A/B/C/D/E/F/G/PA/TA/TB). Use horizontal bar charts."
+    },
+    "pdf_export": {
+      "library": "Use `html2canvas` and `jspdf` or browser print approach (`react-to-print`).",
+      "header_style": "Must feature a dark green gradient (`bg-gradient-to-r from-[#2d4a12] to-[#4d7a20]`) with white text and company info.",
+      "layout": "Must include Client box, Transport box, Products table, Totals, and 3 Signature areas at the bottom (CHOFER / ALMACÉN / ESTIBADOR)."
+    },
+    "testing": "CRITICAL: All interactive elements MUST have `data-testid` attributes (e.g., `data-testid='login-submit-button'`, `data-testid='nav-dashboard'`)."
+  },
+  "media_assets": {
+    "login_background": {
+      "url": "https://images.unsplash.com/photo-1753651840149-84c67b46cc54?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTV8MHwxfHNlYXJjaHwzfHxoeWRyb3BvbmljJTIwZ3JlZW5ob3VzZSUyMHRvbWF0b3xlbnwwfHx8fDE3NzY5Nzk2NDh8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Green tomatoes grow on the vine in a hydroponic greenhouse.",
+      "category": "background"
+    },
+    "dashboard_empty_state": {
+      "url": "https://images.pexels.com/photos/2818573/pexels-photo-2818573.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Rows of ripe cherry tomatoes growing in a greenhouse.",
+      "category": "illustration"
+    }
+  },
+  "accessibility_and_motion": {
+    "hover_states": "Ensure contrast is maintained on hover. Buttons MUST have explicitly set text colors on hover.",
+    "focus": "Use focus:ring-2 focus:ring-[#8fc050] on all inputs and buttons.",
+    "transitions": "Use transition-all duration-200 ease-in-out for buttons, links, and cards."
+  }
+}
