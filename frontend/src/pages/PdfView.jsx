@@ -31,9 +31,9 @@ export default function PdfView() {
   };
 
   if (!rem) return <div className="p-8">Cargando…</div>;
-
   const avgJito = stats?.avg_per_crop?.Jitomate || 0;
   const avgPepi = stats?.avg_per_crop?.Pepino || 0;
+  const sigs = rem.signatures || {};
 
   return (
     <div className="bg-[#f4f8ec] min-h-screen p-4 md:p-8" data-testid="pdf-view-page">
@@ -46,8 +46,7 @@ export default function PdfView() {
             <button onClick={() => window.print()} className="bg-white border border-[#2d4a12] text-[#2d4a12] hover:bg-[#2d4a12] hover:text-white rounded-md px-4 py-2 flex items-center gap-2">
               <Printer className="w-4 h-4" /> Imprimir
             </button>
-            <button onClick={download} data-testid="download-pdf-button"
-              className="bg-[#2d4a12] text-white hover:bg-[#3d6518] rounded-md px-4 py-2 flex items-center gap-2">
+            <button onClick={download} data-testid="download-pdf-button" className="bg-[#2d4a12] text-white hover:bg-[#3d6518] rounded-md px-4 py-2 flex items-center gap-2">
               <Download className="w-4 h-4" /> Descargar PDF
             </button>
           </div>
@@ -65,6 +64,7 @@ export default function PdfView() {
               <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: 2 }}>REMISIÓN</div>
               <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6 }}>{rem.number || "BORRADOR"}</div>
               <div style={{ fontSize: 10, marginTop: 4 }}>{formatDate(rem.date)}</div>
+              {rem.folio_cliente && <div style={{ fontSize: 9, marginTop: 4, opacity: 0.9 }}>Folio cliente: {rem.folio_cliente}</div>}
             </div>
           </div>
 
@@ -86,7 +86,7 @@ export default function PdfView() {
           <table className="pdf-table">
             <thead>
               <tr>
-                <th>Módulo</th><th>Calidad</th><th>Color</th><th>Tamaño</th>
+                <th>Módulo</th><th>Cultivo</th><th>Calidad</th><th>Color</th><th>Tamaño</th>
                 <th style={{ textAlign: "right" }}>Cajas</th>
                 <th style={{ textAlign: "right" }}>Kg/caja</th>
                 <th style={{ textAlign: "right" }}>Total kg</th>
@@ -97,10 +97,7 @@ export default function PdfView() {
             <tbody>
               {rem.lines.map((l, i) => (
                 <tr key={i}>
-                  <td>{l.module_id}</td>
-                  <td>{l.quality}</td>
-                  <td>{l.color || "N/A"}</td>
-                  <td>{l.size}</td>
+                  <td>{l.module_id}</td><td>{l.crop}</td><td>{l.quality}</td><td>{l.color || "N/A"}</td><td>{l.size}</td>
                   <td style={{ textAlign: "right" }}>{l.boxes}</td>
                   <td style={{ textAlign: "right" }}>{l.kg_per_box}</td>
                   <td style={{ textAlign: "right" }}>{formatNum(l.boxes * l.kg_per_box)}</td>
@@ -117,16 +114,6 @@ export default function PdfView() {
             <div style={{ fontSize: 13 }}>IMPORTE TOTAL: <strong>{formatMXN(rem.totals?.total_amount || 0)}</strong></div>
           </div>
 
-          {rem.empty_box_movement && (
-            <div className="pdf-section boxes">
-              <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: 2, color: "#92400e" }}>Movimiento de cajas vacías</div>
-              <div style={{ fontSize: 10, color: "#92400e", marginTop: 2 }}>
-                {rem.empty_box_movement.type === "delivery" ? "Entrega al cliente" : "Devolución del cliente"} —
-                Cantidad: {rem.empty_box_movement.quantity} · Ref: {rem.empty_box_movement.ref || "—"}
-              </div>
-            </div>
-          )}
-
           {rem.observations && (
             <div style={{ marginTop: 12, fontSize: 9, fontStyle: "italic", color: "#4d5e42", padding: "8px 12px", background: "#f4f8ec", borderRadius: 6 }}>
               <strong>Observaciones:</strong> {rem.observations}
@@ -134,16 +121,26 @@ export default function PdfView() {
           )}
 
           <div className="pdf-signatures">
-            <div className="pdf-sign-box">CHOFER</div>
-            <div className="pdf-sign-box" style={{ position: "relative" }}>
-              {rem.warehouse_signature_image && (
-                <img src={rem.warehouse_signature_image} alt="firma" style={{ maxWidth: "100%", maxHeight: 60, objectFit: "contain", margin: "auto" }} />
-              )}
-              <span>ALMACÉN</span>
-            </div>
-            <div className="pdf-sign-box">ESTIBADOR</div>
+            <SigBox label="CHOFER" sig={sigs.chofer} fallbackName={rem.driver_name} />
+            <SigBox label="ALMACÉN" sig={sigs.almacen} />
+            <SigBox label="ESTIBADOR" sig={sigs.estibador} />
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SigBox({ label, sig, fallbackName }) {
+  const name = sig?.name || fallbackName || "";
+  return (
+    <div className="pdf-sign-box" style={{ position: "relative" }}>
+      {sig?.image && (
+        <img src={sig.image} alt="firma" style={{ maxWidth: "100%", maxHeight: 60, objectFit: "contain", margin: "auto" }} />
+      )}
+      <div>
+        {name && <div style={{ fontSize: 8, color: "#16210b", fontWeight: 600 }}>{name}</div>}
+        <div>{label}</div>
       </div>
     </div>
   );

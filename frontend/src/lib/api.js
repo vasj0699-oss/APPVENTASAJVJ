@@ -1,4 +1,5 @@
 import axios from "axios";
+import * as XLSX from "xlsx";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -29,32 +30,26 @@ export default api;
 
 export const formatMXN = (v) =>
   (Number(v) || 0).toLocaleString("es-MX", {
-    style: "currency",
-    currency: "MXN",
-    minimumFractionDigits: 2,
+    style: "currency", currency: "MXN", minimumFractionDigits: 2,
   });
 
 export const formatNum = (v, d = 2) =>
   (Number(v) || 0).toLocaleString("es-MX", {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
+    minimumFractionDigits: d, maximumFractionDigits: d,
   });
 
 export const formatDate = (s) => {
   if (!s) return "—";
   try {
-    const d = new Date(s);
-    return d.toLocaleDateString("es-MX", {
-      year: "numeric", month: "short", day: "numeric",
-    });
-  } catch {
-    return s;
-  }
+    return new Date(s).toLocaleDateString("es-MX", { year: "numeric", month: "short", day: "numeric" });
+  } catch { return s; }
 };
 
-export const SIZES_JITOMATE = ["XL", "L", "M", "S", "C"];
-export const SIZES_PEPINO = ["XL", "L", "C"];
-export const COLORS_JITOMATE = ["Verde", "Rayado", "Rojo"];
-export const QUALITIES = ["1ra", "Arrastre", "Papeles"];
-export const CROPS = ["Jitomate", "Pepino"];
 export const MODULE_IDS = ["A", "B", "C", "D", "E", "F", "G", "PA", "TA", "TB"];
+
+export const exportToExcel = (rows, sheetName, filename) => {
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, filename);
+};

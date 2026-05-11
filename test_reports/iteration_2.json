@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 2 backend testing complete for AJVJ Hidropónicos. 24/24 pytest tests pass covering role rename (operador->capturista), capturista RBAC, crop catalog CRUD with in-use guard, signer_names, module cycles (open + close_cycle + overlap), remisiones auto-egreso, soft-delete cancel, draft-vs-confirmed delete, folio_cliente + signatures round-trip, box_movements standalone, client account excluding cancelled, and dashboard filters. Fixed one 500 bug in POST /api/catalog/crops (Mongo _id leaking into response).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PUT /api/catalog/crops/{crop_id}", "issue": "Uses upsert=True so a PUT to a non-existing crop_id silently creates it (no 404). Low impact but inconsistent with REST."},
+      {"endpoint": "PUT /api/clients/{cid}", "issue": "Uses upsert=True so PUT on unknown client id silently creates it."},
+      {"endpoint": "DELETE /api/clients/{cid}", "issue": "Does not check for referencing remisiones; can orphan client_id values."},
+      {"endpoint": "DELETE /api/box_movements/{mid}", "issue": "Returns ok:true even when nothing matched (no 404)."},
+      {"endpoint": "POST /api/remisiones (draft)", "issue": "Auto-egreso correctly NOT created for draft; however if a draft is later confirmed via PUT, egreso is created — verified. Documented for next agent."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test_iter2.py",
+    "/app/test_reports/pytest/pytest_iter2.xml"
+  ],
+  "action_items": [
+    "Consider not using upsert=True on PUT /catalog/crops/{id} and PUT /clients/{cid} — return 404 instead when id not found.",
+    "Update /app/memory/test_credentials.md: still mentions 'Operador role can only create/edit...' — rename to 'Capturista'.",
+    "DELETE /api/clients/{cid} should refuse if remisiones reference the client (or set client_id=null).",
+    "(Optional) Split server.py (now ~765 lines) into routers (auth, clients, remisiones, modules, catalog, dashboard)."
+  ],
+  "critical_code_review_comments": [
+    "BUG FIXED by tester: POST /api/catalog/crops returned 500 because Motor's insert_one mutates the dict to add ObjectId _id and the endpoint returned it un-popped. Fixed with doc.pop('_id', None).",
+    "_require_can_edit_remision: when user.role != admin/capturista an unreachable 403 path exists (only those two roles in enum). Fine but dead code.",
+    "PUT /api/remisiones cancelled-guard returns 400 'No se puede editar una remisión cancelada' but happens after _require_can_edit_remision which for capturista already 403s on non-draft, so admin-only path will see this 400 — correct.",
+    "/api/dashboard/stats correctly filters lines and only counts remisiones with at least one matching line (num_remisiones derived from filtered_rem_ids).",
+    "Auto-egreso is created with ref='Remisión {rem_id[:8]}' (UUID slice) — consider using the human-readable number instead once it's assigned.",
+    "CORSMiddleware still uses '*' with allow_credentials=True; cookie-based auth in browsers would fail. Currently using Bearer tokens so it's tolerable.",
+    "No brute-force lockout on /auth/login (5-fail rule from playbook not implemented). Not requested in this iteration."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (one-line fix: pop _id in create_crop)",
+    "/app/backend/tests/backend_test_iter2.py (new comprehensive iter2 test file)"
+  ],
+  "success_rate": {"backend": "100% (24/24)", "frontend": "not tested (backend only)"},
+  "test_credentials": "admin@ajvj.mx / admin123 (verified). TEST_cap_* capturista users created during tests; existing TEST_op_* users from iter1 already migrated to role=capturista per main agent note.",
+  "seed_data_creation": "Created several TEST_Cliente_iter2_*, TEST_Crop_*, TEST_Used_* crops (cleaned up), TEST_cap_* users, and ~15 TEST remisiones (mix of draft/confirmed/cancelled) plus box_movements. Modules F, G, PA, TB modified for cycle testing. Data left in DB for next agent context.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 24 iter2 backend tests pass. One real bug found and fixed (catalog crop POST 500 due to leaked Mongo _id). Auto-egreso logic verified end-to-end: created on confirmed POST + on draft->confirmed PUT, removed on cancel. /clients/{id}/account excludes cancelled remisiones and includes boxes:{ingresos,egresos,balance,movements}. Dashboard filter behavior validated: lines filtered and only remisiones with matching lines are counted in num_remisiones. Next step: frontend integration testing for new flows (capturista login restrictions, crop catalog UI, signer_names management, cancel button on confirmed remisión, folio_cliente input, signatures capture, box movements UI, dashboard filter chips).",
+  "rca_of_the_issue": "POST /api/catalog/crops returned 500 'ObjectId is not iterable' because the code did `await db.crop_catalog.insert_one(doc); return doc` — Motor's insert_one mutates the dict in-place adding a non-serializable ObjectId. Fix: pop _id before returning. Other create endpoints (clients, box_movements, remisiones) already did this; only catalog was missed during the iter2 rewrite."
+}
