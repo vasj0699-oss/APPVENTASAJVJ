@@ -84,8 +84,6 @@ export default function Login() {
           </form>
 
           <div className="mt-8 p-4 rounded-lg bg-[#deedc0]/50 border border-[#deedc0] text-xs text-[#4d5e42]">
-            <div className="font-semibold text-[#2d4a12] mb-1">Credenciales por defecto</div>
-            admin@ajvj.mx / admin123
           </div>
         </div>
       </div>
