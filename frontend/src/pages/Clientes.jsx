@@ -11,7 +11,8 @@ const emptyClient = () => ({
 });
 
 export default function Clientes() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const isCapturista = user?.role === "capturista";
   const [clients, setClients] = useState([]);
   const [accounts, setAccounts] = useState({}); // client_id -> account state
   const [showForm, setShowForm] = useState(false);
@@ -155,9 +156,11 @@ export default function Clientes() {
                   <div className="text-xs text-[#4d5e42] mt-0.5">{c.rfc} · {c.phone} · {c.email}</div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <button onClick={() => exportAccountXlsx(c)} className="bg-[#deedc0] text-[#2d4a12] hover:bg-[#8fc050] hover:text-white rounded-md px-3 py-1.5 text-sm flex items-center gap-1">
-                    <FileSpreadsheet className="w-3 h-3" /> Estado cuenta
-                  </button>
+                  {!isCapturista && (
+                    <button onClick={() => exportAccountXlsx(c)} className="bg-[#deedc0] text-[#2d4a12] hover:bg-[#8fc050] hover:text-white rounded-md px-3 py-1.5 text-sm flex items-center gap-1">
+                      <FileSpreadsheet className="w-3 h-3" /> Estado cuenta
+                    </button>
+                  )}
                   {isAdmin && (
                     <>
                       <button onClick={() => editClient(c)} className="bg-[#deedc0] text-[#2d4a12] hover:bg-[#8fc050] hover:text-white rounded-md px-3 py-1.5 text-sm">Editar</button>
@@ -169,16 +172,20 @@ export default function Clientes() {
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
-                <div><div className="text-[10px] uppercase tracking-widest text-[#4d5e42]">Facturado</div><div className="font-semibold">{formatMXN(a.facturado)}</div></div>
-                <div><div className="text-[10px] uppercase tracking-widest text-[#4d5e42]">Pagado</div><div className="font-semibold">{formatMXN(a.pagado)}</div></div>
-                <div><div className="text-[10px] uppercase tracking-widest text-[#4d5e42]">Saldo</div><div className={`font-semibold ${a.saldo > 0 ? "text-red-600" : ""}`}>{formatMXN(a.saldo)}</div></div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-widest text-[#4d5e42]">Crédito {formatMXN(c.credit_limit)}</div>
-                  <div className="h-2 mt-1 bg-[#deedc0] rounded-full overflow-hidden">
-                    <div className={`h-full ${creditPct > 90 ? "bg-red-500" : "bg-[#4d7a20]"}`} style={{ width: `${Math.max(0, creditPct)}%` }} />
-                  </div>
-                </div>
+              <div className={`mt-4 grid grid-cols-2 ${isCapturista ? "md:grid-cols-2" : "md:grid-cols-6"} gap-3 text-sm`}>
+                {!isCapturista && (
+                  <>
+                    <div><div className="text-[10px] uppercase tracking-widest text-[#4d5e42]">Facturado</div><div className="font-semibold">{formatMXN(a.facturado)}</div></div>
+                    <div><div className="text-[10px] uppercase tracking-widest text-[#4d5e42]">Pagado</div><div className="font-semibold">{formatMXN(a.pagado)}</div></div>
+                    <div><div className="text-[10px] uppercase tracking-widest text-[#4d5e42]">Saldo</div><div className={`font-semibold ${a.saldo > 0 ? "text-red-600" : ""}`}>{formatMXN(a.saldo)}</div></div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-widest text-[#4d5e42]">Crédito {formatMXN(c.credit_limit)}</div>
+                      <div className="h-2 mt-1 bg-[#deedc0] rounded-full overflow-hidden">
+                        <div className={`h-full ${creditPct > 90 ? "bg-red-500" : "bg-[#4d7a20]"}`} style={{ width: `${Math.max(0, creditPct)}%` }} />
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div title="Cliente entrega → ingreso. Remisión → egreso">
                   <div className="text-[10px] uppercase tracking-widest text-[#4d5e42]">Cajas (ingresos / egresos)</div>
                   <div className="font-semibold">{a.boxes.ingresos} / {a.boxes.egresos}</div>
@@ -194,12 +201,12 @@ export default function Clientes() {
               <button onClick={() => setExpanded(expanded === c.id ? null : c.id)}
                 className="mt-3 text-sm text-[#2d4a12] hover:text-[#3d6518] flex items-center gap-1">
                 {expanded === c.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                {expanded === c.id ? "Ocultar detalle" : "Ver detalle / Agregar pago o cajas"}
+                {expanded === c.id ? "Ocultar detalle" : (isCapturista ? "Registrar movimiento de cajas" : "Ver detalle / Agregar pago o cajas")}
               </button>
 
               {expanded === c.id && (
                 <div className="mt-4 pt-4 border-t border-[#deedc0] space-y-5">
-                  <Detalle client={c} account={a} isAdmin={isAdmin} onChange={loadAll} />
+                  <Detalle client={c} account={a} isAdmin={isAdmin} isCapturista={isCapturista} onChange={loadAll} />
                 </div>
               )}
             </div>
@@ -223,7 +230,7 @@ function Labeled({ label, children, colSpan = "" }) {
   );
 }
 
-function Detalle({ client, account, isAdmin, onChange }) {
+function Detalle({ client, account, isAdmin, isCapturista, onChange }) {
   const [pay, setPay] = useState({ date: new Date().toISOString().slice(0, 10), amount: 0, ref: "" });
   const [box, setBox] = useState({ date: new Date().toISOString().slice(0, 10), type: "ingreso", quantity: 0, ref: "" });
 
@@ -244,36 +251,38 @@ function Detalle({ client, account, isAdmin, onChange }) {
 
   return (
     <>
-      <div>
-        <h4 className="font-semibold text-[#16210b] mb-2">Remisiones</h4>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="text-[#4d5e42]">
-              <tr><th className="text-left px-2 py-1">#</th><th className="text-left px-2 py-1">Fecha</th><th className="text-left px-2 py-1">Folio cliente</th><th className="text-right px-2 py-1">Importe</th><th className="text-left px-2 py-1">Estado</th></tr>
-            </thead>
-            <tbody>
-              {account.remisiones.map((r) => (
-                <tr key={r.id} className="border-t border-[#deedc0]">
-                  <td className={`px-2 py-1 font-mono ${r.status === "cancelled" ? "line-through text-gray-400" : ""}`}>{r.number || "BORRADOR"}</td>
-                  <td className="px-2 py-1">{formatDate(r.date)}</td>
-                  <td className="px-2 py-1">{r.folio_cliente || "—"}</td>
-                  <td className="px-2 py-1 text-right">{formatMXN(r.totals?.total_amount || 0)}</td>
-                  <td className="px-2 py-1">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                      r.status === "cancelled" ? "bg-red-100 text-red-800" :
-                      r.status === "draft" ? "bg-amber-100 text-amber-800" :
-                      account.saldo > 0 ? "bg-amber-100 text-amber-800" : "bg-[#deedc0] text-[#2d4a12]"
-                    }`}>
-                      {r.status === "cancelled" ? "Cancelada" : r.status === "draft" ? "Borrador" : account.saldo > 0 ? "En crédito" : "Pagado"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {account.remisiones.length === 0 && <tr><td colSpan={5} className="text-center py-3 text-[#4d5e42]">Sin remisiones</td></tr>}
-            </tbody>
-          </table>
+      {!isCapturista && (
+        <div>
+          <h4 className="font-semibold text-[#16210b] mb-2">Remisiones</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-[#4d5e42]">
+                <tr><th className="text-left px-2 py-1">#</th><th className="text-left px-2 py-1">Fecha</th><th className="text-left px-2 py-1">Folio cliente</th><th className="text-right px-2 py-1">Importe</th><th className="text-left px-2 py-1">Estado</th></tr>
+              </thead>
+              <tbody>
+                {account.remisiones.map((r) => (
+                  <tr key={r.id} className="border-t border-[#deedc0]">
+                    <td className={`px-2 py-1 font-mono ${r.status === "cancelled" ? "line-through text-gray-400" : ""}`}>{r.number || "BORRADOR"}</td>
+                    <td className="px-2 py-1">{formatDate(r.date)}</td>
+                    <td className="px-2 py-1">{r.folio_cliente || "—"}</td>
+                    <td className="px-2 py-1 text-right">{formatMXN(r.totals?.total_amount || 0)}</td>
+                    <td className="px-2 py-1">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                        r.status === "cancelled" ? "bg-red-100 text-red-800" :
+                        r.status === "draft" ? "bg-amber-100 text-amber-800" :
+                        account.saldo > 0 ? "bg-amber-100 text-amber-800" : "bg-[#deedc0] text-[#2d4a12]"
+                      }`}>
+                        {r.status === "cancelled" ? "Cancelada" : r.status === "draft" ? "Borrador" : account.saldo > 0 ? "En crédito" : "Pagado"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {account.remisiones.length === 0 && <tr><td colSpan={5} className="text-center py-3 text-[#4d5e42]">Sin remisiones</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {isAdmin && (

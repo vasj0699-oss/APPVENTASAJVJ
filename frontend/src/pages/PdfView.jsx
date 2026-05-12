@@ -4,10 +4,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Printer, Download } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { useAuth } from "../lib/auth";
 
 export default function PdfView() {
   const { id } = useParams();
   const nav = useNavigate();
+  const { user } = useAuth();
+  const isCapturista = user?.role === "capturista";
   const [rem, setRem] = useState(null);
   const [company, setCompany] = useState({});
   const [stats, setStats] = useState(null);
@@ -16,8 +19,10 @@ export default function PdfView() {
   useEffect(() => {
     api.get(`/remisiones/${id}`).then((r) => setRem(r.data));
     api.get("/company").then((r) => setCompany(r.data));
-    api.get("/dashboard/stats").then((r) => setStats(r.data));
-  }, [id]);
+    if (!isCapturista) {
+      api.get("/dashboard/stats").then((r) => setStats(r.data));
+    }
+  }, [id, isCapturista]);
 
   const download = async () => {
     if (!ref.current) return;
@@ -27,7 +32,7 @@ export default function PdfView() {
     const w = pdf.internal.pageSize.getWidth();
     const h = (canvas.height * w) / canvas.width;
     pdf.addImage(img, "PNG", 0, 0, w, h);
-    pdf.save(`remision-${rem.number || rem.id.slice(0, 6)}.pdf`);
+    pdf.save(`remision-${rem.number || rem.id.slice(0, 6)}${isCapturista ? "-comprobante" : ""}.pdf`);
   };
 
   if (!rem) return <div className="p-8">Cargando…</div>;
@@ -90,8 +95,10 @@ export default function PdfView() {
                 <th style={{ textAlign: "right" }}>Cajas</th>
                 <th style={{ textAlign: "right" }}>Kg/caja</th>
                 <th style={{ textAlign: "right" }}>Total kg</th>
-                <th style={{ textAlign: "right" }}>$/caja</th>
-                <th style={{ textAlign: "right" }}>Subtotal</th>
+                {!isCapturista && (<>
+                  <th style={{ textAlign: "right" }}>$/caja</th>
+                  <th style={{ textAlign: "right" }}>Subtotal</th>
+                </>)}
               </tr>
             </thead>
             <tbody>
@@ -101,8 +108,10 @@ export default function PdfView() {
                   <td style={{ textAlign: "right" }}>{l.boxes}</td>
                   <td style={{ textAlign: "right" }}>{l.kg_per_box}</td>
                   <td style={{ textAlign: "right" }}>{formatNum(l.boxes * l.kg_per_box)}</td>
-                  <td style={{ textAlign: "right" }}>{formatMXN(l.price_per_box)}</td>
-                  <td style={{ textAlign: "right", fontWeight: 600 }}>{formatMXN(l.subtotal)}</td>
+                  {!isCapturista && (<>
+                    <td style={{ textAlign: "right" }}>{formatMXN(l.price_per_box)}</td>
+                    <td style={{ textAlign: "right", fontWeight: 600 }}>{formatMXN(l.subtotal)}</td>
+                  </>)}
                 </tr>
               ))}
             </tbody>
@@ -111,7 +120,9 @@ export default function PdfView() {
           <div className="pdf-totals">
             <div>Cajas: <strong>{rem.totals?.boxes}</strong></div>
             <div>Total kg: <strong>{formatNum(rem.totals?.total_kg || 0)}</strong></div>
-            <div style={{ fontSize: 13 }}>IMPORTE TOTAL: <strong>{formatMXN(rem.totals?.total_amount || 0)}</strong></div>
+            {!isCapturista && (
+              <div style={{ fontSize: 13 }}>IMPORTE TOTAL: <strong>{formatMXN(rem.totals?.total_amount || 0)}</strong></div>
+            )}
           </div>
 
           {rem.observations && (

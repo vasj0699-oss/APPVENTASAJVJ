@@ -2,7 +2,7 @@ import React from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import {
-  LayoutDashboard, FileText, History, Boxes, Users, Settings, LogOut, UserCog,
+  LayoutDashboard, FileText, History, Boxes, Users, Settings, LogOut, UserCog, Package,
 } from "lucide-react";
 import { Toaster } from "sonner";
 
@@ -19,6 +19,7 @@ export default function AppShell() {
     { to: "/historial", icon: History, label: "Historial", testid: "nav-historial" },
     { to: "/modulos", icon: Boxes, label: "Por Módulo", testid: "nav-modulos", adminOnly: true },
     { to: "/clientes", icon: Users, label: "Clientes", testid: "nav-clientes" },
+    { to: "/cajas", icon: Package, label: "Cajas vacías", testid: "nav-cajas" },
     { to: "/configuracion", icon: Settings, label: "Configuración", testid: "nav-config", adminOnly: true },
     { to: "/usuarios", icon: UserCog, label: "Usuarios", testid: "nav-users", adminOnly: true },
   ];

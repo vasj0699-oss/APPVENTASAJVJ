@@ -151,7 +151,7 @@ class RemisionLine(BaseModel):
     size: str
     boxes: int
     kg_per_box: float = 19
-    price_per_box: float
+    price_per_box: float = 0
     subtotal: float = 0
 
 class RemisionIn(BaseModel):

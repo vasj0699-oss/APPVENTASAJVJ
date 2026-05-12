@@ -12,6 +12,7 @@ import Clientes from "./pages/Clientes";
 import Configuracion from "./pages/Configuracion";
 import Usuarios from "./pages/Usuarios";
 import PdfView from "./pages/PdfView";
+import CajasVacias from "./pages/CajasVacias";
 
 function Protected({ children, adminOnly = false }) {
   const { user, loading, isAdmin } = useAuth();
@@ -39,6 +40,7 @@ function Router() {
           <Route path="/historial" element={<Historial />} />
           <Route path="/modulos" element={<PorModulo />} />
           <Route path="/clientes" element={<Clientes />} />
+          <Route path="/cajas" element={<CajasVacias />} />
           <Route path="/configuracion" element={<Protected adminOnly><Configuracion /></Protected>} />
           <Route path="/usuarios" element={<Protected adminOnly><Usuarios /></Protected>} />
         </Route>

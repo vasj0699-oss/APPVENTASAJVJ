@@ -6,7 +6,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 
 export default function Historial() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const isCapturista = user?.role === "capturista";
   const nav = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +89,7 @@ export default function Historial() {
           <p className="section-sub">{filtered.length} de {items.length} remisiones</p>
         </div>
         <button onClick={exportXlsx} data-testid="export-xlsx-button"
-          className="bg-[#deedc0] text-[#2d4a12] hover:bg-[#8fc050] hover:text-white rounded-md px-4 py-2 flex items-center gap-2 text-sm">
+          className={`bg-[#deedc0] text-[#2d4a12] hover:bg-[#8fc050] hover:text-white rounded-md px-4 py-2 flex items-center gap-2 text-sm ${isCapturista ? "hidden" : ""}`}>
           <FileSpreadsheet className="w-4 h-4" /> Exportar Excel
         </button>
       </div>
@@ -168,7 +169,7 @@ export default function Historial() {
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead><tr className="text-[#4d5e42]">
-                    <th className="text-left px-2 py-1">Módulo</th><th className="text-left px-2 py-1">Cultivo</th><th className="text-left px-2 py-1">Calidad</th><th className="text-left px-2 py-1">Color</th><th className="text-left px-2 py-1">Tamaño</th><th className="text-right px-2 py-1">Cajas</th><th className="text-right px-2 py-1">Kg</th><th className="text-right px-2 py-1">$/caja</th><th className="text-right px-2 py-1">Subtotal</th>
+                    <th className="text-left px-2 py-1">Módulo</th><th className="text-left px-2 py-1">Cultivo</th><th className="text-left px-2 py-1">Calidad</th><th className="text-left px-2 py-1">Color</th><th className="text-left px-2 py-1">Tamaño</th><th className="text-right px-2 py-1">Cajas</th><th className="text-right px-2 py-1">Kg</th>{!isCapturista && (<><th className="text-right px-2 py-1">$/caja</th><th className="text-right px-2 py-1">Subtotal</th></>)}
                   </tr></thead>
                   <tbody>
                     {r.lines.map((l, i) => (
@@ -180,8 +181,10 @@ export default function Historial() {
                         <td className="px-2 py-1">{l.size}</td>
                         <td className="px-2 py-1 text-right">{l.boxes}</td>
                         <td className="px-2 py-1 text-right">{formatNum(l.boxes * l.kg_per_box)}</td>
-                        <td className="px-2 py-1 text-right">{formatMXN(l.price_per_box)}</td>
-                        <td className="px-2 py-1 text-right font-medium">{formatMXN(l.subtotal)}</td>
+                        {!isCapturista && (<>
+                          <td className="px-2 py-1 text-right">{formatMXN(l.price_per_box)}</td>
+                          <td className="px-2 py-1 text-right font-medium">{formatMXN(l.subtotal)}</td>
+                        </>)}
                       </tr>
                     ))}
                   </tbody>
@@ -192,7 +195,9 @@ export default function Historial() {
                 <div className="flex gap-4">
                   <span><span className="text-[#4d5e42]">Cajas:</span> <strong>{r.totals?.boxes}</strong></span>
                   <span><span className="text-[#4d5e42]">Kg:</span> <strong>{formatNum(r.totals?.total_kg || 0)}</strong></span>
-                  <span className="text-lg"><span className="text-[#4d5e42]">Total:</span> <strong className={isCancelled ? "line-through text-gray-500" : "text-[#2d4a12]"}>{formatMXN(r.totals?.total_amount || 0)}</strong></span>
+                  {!isCapturista && (
+                    <span className="text-lg"><span className="text-[#4d5e42]">Total:</span> <strong className={isCancelled ? "line-through text-gray-500" : "text-[#2d4a12]"}>{formatMXN(r.totals?.total_amount || 0)}</strong></span>
+                  )}
                 </div>
               </div>
             </div>

@@ -164,8 +164,13 @@ export default function NuevaRemision() {
 
   const save = async (status) => {
     if (!form.client_id) { toast.error("Selecciona un cliente"); return; }
-    if (form.lines.length === 0 || form.lines.some((l) => !l.boxes || !l.price_per_box)) {
-      toast.error("Todas las líneas deben tener cajas y precio");
+    if (form.lines.length === 0) { toast.error("Agrega al menos una línea"); return; }
+    if (form.lines.some((l) => !l.boxes)) {
+      toast.error("Todas las líneas deben tener cajas");
+      return;
+    }
+    if (status === "confirmed" && form.lines.some((l) => !l.price_per_box)) {
+      toast.error("Para confirmar, todas las líneas deben tener precio");
       return;
     }
     setSaving(true);
