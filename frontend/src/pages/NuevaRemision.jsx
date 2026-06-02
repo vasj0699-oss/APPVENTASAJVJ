@@ -68,7 +68,7 @@ export default function NuevaRemision() {
       setForm((f) => ({ ...f, lines: [newLineDefault()] }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modules, crops, editId]);
+ }, [modules, crops, editId, moduleMap, cropMap]);
 
   const newLineDefault = () => {
     const m = modules[0];
