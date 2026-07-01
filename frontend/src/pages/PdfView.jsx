@@ -86,26 +86,77 @@ export default function PdfView() {
 
   const download = async () => {
     if (!ref.current) return;
-    const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
-    const img = canvas.toDataURL("image/png");
+    const canvas = await html2canvas(ref.current, {
+      scale: 2,
+      backgroundColor: "#ffffff",
+      useCORS: true,
+    });
+
     const pdf = new jsPDF({ unit: "mm", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
-    pdf.addImage(img, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(img, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-    }
-    pdf.save(`remision-${rem.number || rem.id.slice(0, 6)}${isCapturista ? "-comprobante" : ""}.pdf`);
-  };
+    const scale = canvas.width / imgWidth;
+    const pageHeightPx = pageHeight * scale;
 
+    // Busca el mejor punto de corte cerca del objetivo
+    // evitando cortar en medio de una fila
+    const findSafeCut = (startY, targetY) => {
+      const ctx = canvas.getContext("2d");
+      const searchRange = Math.min(80, pageHeightPx * 0.05);
+      let bestY = targetY;
+      let mostWhite = -1;
+
+      for (
+        let y = Math.max(startY + 10, targetY - searchRange);
+        y <= Math.min(canvas.height - 1, targetY + searchRange);
+        y++
+      ) {
+        const data = ctx.getImageData(0, y, canvas.width, 1).data;
+        let whiteCount = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i] > 235 && data[i + 1] > 235 && data[i + 2] > 235)
+            whiteCount++;
+        }
+        if (whiteCount > mostWhite) {
+          mostWhite = whiteCount;
+          bestY = y;
+        }
+      }
+      return bestY;
+    };
+
+    let currentY = 0;
+    let isFirstPage = true;
+
+    while (currentY < canvas.height) {
+      if (!isFirstPage) pdf.addPage();
+
+      const targetCut = currentY + pageHeightPx;
+      const cutY =
+        targetCut >= canvas.height
+          ? canvas.height
+          : findSafeCut(currentY, targetCut);
+
+      const sliceH = cutY - currentY;
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sliceH;
+      pageCanvas
+        .getContext("2d")
+        .drawImage(canvas, 0, currentY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+
+      const sliceImgH = (sliceH / canvas.width) * imgWidth;
+      pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", 0, 0, imgWidth, sliceImgH);
+
+      currentY = cutY;
+      isFirstPage = false;
+    }
+
+    pdf.save(
+      `remision-${rem.number || rem.id.slice(0, 6)}${isCapturista ? "-comprobante" : ""}.pdf`
+    );
+  };
   if (!rem) return <div className="p-8">Cargando…</div>;
   const grouped = groupLines(rem.lines || []);
   const avgJito = stats?.avg_per_crop?.Jitomate || 0;
