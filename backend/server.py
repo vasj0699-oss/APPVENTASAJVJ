@@ -94,7 +94,7 @@ class Cycle(BaseModel):
     crop: str
     variety: str = ""
     start_date: str
-    end_date: Optional[str] = None  # None until cycle is closed
+    end_date: Optional[str] = None
     closed: bool = False
 
 class ModuleCfg(BaseModel):
@@ -134,14 +134,14 @@ class PaymentIn(BaseModel):
 class BoxMovementIn(BaseModel):
     client_id: str
     date: str
-    type: Literal["ingreso", "egreso"]  # ingreso=cliente entrega cajas; egreso=le regresamos
+    type: Literal["ingreso", "egreso"]
     quantity: int
     ref: str = ""
-    remision_id: Optional[str] = None  # if tied to a remisión
+    remision_id: Optional[str] = None
 
 class SignatureBlock(BaseModel):
     name: str = ""
-    image: str = ""  # base64
+    image: str = ""
 
 class RemisionLine(BaseModel):
     module_id: str
@@ -165,10 +165,10 @@ class RemisionIn(BaseModel):
     destination: str = ""
     driver_name: str = ""
     license_plates: str = ""
-    folio_cliente: str = ""  # cliente le asigna a nuestra remisión
+    folio_cliente: str = ""
     observations: str = ""
     lines: List[RemisionLine]
-    signatures: dict = {}  # {chofer: {name, image}, almacen: {name, image}, estibador: {name, image}}
+    signatures: dict = {}
 
 # ─── Startup ──────────────────────────────────────────────────────────
 @app.on_event("startup")
@@ -213,7 +213,6 @@ async def startup():
             "id": "main", "almacen": [], "estibador": [],
         })
 
-    # Seed default crops
     if not await db.crop_catalog.find_one({"id": "Jitomate"}):
         await db.crop_catalog.insert_one({
             "id": "Jitomate", "name": "Jitomate",
@@ -323,7 +322,7 @@ async def create_crop(body: CropCatalog, _: dict = Depends(require_admin)):
 async def update_crop(crop_id: str, body: CropCatalog, _: dict = Depends(require_admin)):
     doc = body.model_dump()
     doc["id"] = crop_id
-    doc["name"] = crop_id  # rename not allowed to keep referential integrity
+    doc["name"] = crop_id
     await db.crop_catalog.update_one({"id": crop_id}, {"$set": doc}, upsert=True)
     return doc
 
@@ -352,12 +351,10 @@ async def update_module(mid: str, body: ModuleCfg, _: dict = Depends(require_adm
     cycles = doc.get("cycles", [])
     if len(cycles) > 2:
         raise HTTPException(400, "Máximo 2 ciclos por módulo")
-    # Non-overlap only when both have end_date
     if len(cycles) == 2 and all(c.get("end_date") for c in cycles):
         c1, c2 = cycles[0], cycles[1]
         if not (c1["end_date"] <= c2["start_date"] or c2["end_date"] <= c1["start_date"]):
             raise HTTPException(400, "Los ciclos no pueden traslaparse")
-    # Derive active_crop from the open cycle (most recent non-closed)
     open_cycles = [c for c in cycles if not c.get("closed")]
     if open_cycles:
         doc["active_crop"] = open_cycles[-1]["crop"]
@@ -415,7 +412,7 @@ async def add_payment(cid: str, body: PaymentIn, _: dict = Depends(require_admin
     await db.clients.update_one({"id": cid}, {"$push": {"payments": p}})
     return p
 
-# ─── Box movements (standalone) ──────────────────────────────────────
+# ─── Box movements ────────────────────────────────────────────────────
 @api.get("/box_movements")
 async def list_box_movements(client_id: Optional[str] = None, _: dict = Depends(get_current_user)):
     q = {}
@@ -462,7 +459,6 @@ async def _next_number() -> str:
     return f"{year}-{counter['seq']:04d}"
 
 async def _auto_egreso_for_confirmed(rem_id: str, client_id: str, date: str, boxes: int):
-    """Create automatic egreso box movement when remision is confirmed."""
     if boxes <= 0:
         return
     await db.box_movements.insert_one({
@@ -489,7 +485,6 @@ async def get_remision(rid: str, _: dict = Depends(get_current_user)):
     return r
 
 def _require_can_edit_remision(user, existing):
-    """Capturista: only drafts. Admin: anything."""
     if user["role"] == "admin":
         return
     if user["role"] == "capturista":
@@ -510,6 +505,7 @@ async def create_remision(body: RemisionIn, user: dict = Depends(get_current_use
     doc["created_at"] = datetime.now(timezone.utc).isoformat()
     doc["updated_at"] = doc["created_at"]
     doc["created_by"] = user["id"]
+    doc["edit_history"] = []
 
     if doc["status"] == "confirmed":
         doc["number"] = await _next_number()
@@ -539,6 +535,7 @@ async def update_remision(rid: str, body: RemisionIn, user: dict = Depends(get_c
     doc["updated_at"] = datetime.now(timezone.utc).isoformat()
     doc["created_at"] = existing.get("created_at", doc["updated_at"])
     doc["created_by"] = existing.get("created_by")
+    doc["edit_history"] = existing.get("edit_history", [])
 
     was_confirmed = existing.get("status") == "confirmed"
     will_be_confirmed = doc["status"] == "confirmed"
@@ -550,14 +547,32 @@ async def update_remision(rid: str, body: RemisionIn, user: dict = Depends(get_c
     else:
         doc["number"] = None
 
+    # ─── Registrar edición si ya estaba confirmada ────────────────────
+    if was_confirmed:
+        now = datetime.now(timezone.utc).isoformat()
+        doc["edited_at"] = now
+        doc["edited_by"] = user["id"]
+        doc["edit_history"].append({
+            "edited_at": now,
+            "edited_by": user["id"],
+            "edited_by_name": user.get("name", ""),
+        })
+
     await db.remisiones.update_one({"id": rid}, {"$set": doc})
 
-    # If transitioning draft -> confirmed, create auto egreso
+    # Si pasa de borrador a confirmada, crear egreso automático
     if not was_confirmed and will_be_confirmed:
         await _auto_egreso_for_confirmed(rid, doc["client_id"], doc["date"], doc["totals"]["boxes"])
 
     doc.pop("_id", None)
     return doc
+
+@api.get("/remisiones/{rid}/edit_history")
+async def get_edit_history(rid: str, _: dict = Depends(require_admin)):
+    r = await db.remisiones.find_one({"id": rid}, {"_id": 0, "edit_history": 1})
+    if not r:
+        raise HTTPException(404, "No encontrada")
+    return r.get("edit_history", [])
 
 @api.post("/remisiones/{rid}/cancel")
 async def cancel_remision(rid: str, _: dict = Depends(require_admin)):
@@ -568,13 +583,11 @@ async def cancel_remision(rid: str, _: dict = Depends(require_admin)):
         {"id": rid},
         {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
-    # Remove the auto-generated egreso so it doesn't affect balances
     await db.box_movements.delete_many({"remision_id": rid, "auto": True})
     return {"ok": True}
 
 @api.delete("/remisiones/{rid}")
 async def delete_remision(rid: str, _: dict = Depends(require_admin)):
-    # Hard delete only allowed for drafts
     existing = await db.remisiones.find_one({"id": rid})
     if not existing:
         raise HTTPException(404, "No encontrada")
@@ -583,9 +596,8 @@ async def delete_remision(rid: str, _: dict = Depends(require_admin)):
     await db.remisiones.delete_one({"id": rid})
     return {"ok": True}
 
-# ─── Client account state (with box balance) ──────────────────────────
+# ─── Client account ───────────────────────────────────────────────────
 async def _compute_client_box_balance(client_id: str) -> dict:
-    """ingresos - egresos. Positivo = cliente tiene saldo de cajas a favor."""
     movs = await db.box_movements.find({"client_id": client_id}, {"_id": 0}).to_list(5000)
     ingresos = sum(m["quantity"] for m in movs if m["type"] == "ingreso")
     egresos = sum(m["quantity"] for m in movs if m["type"] == "egreso")
@@ -613,7 +625,7 @@ async def client_account(cid: str, _: dict = Depends(get_current_user)):
         "boxes": boxes,
     }
 
-# ─── Dashboard ───────────────────────────────────────────────────────
+# ─── Dashboard ────────────────────────────────────────────────────────
 @api.get("/dashboard/stats")
 async def dashboard_stats(
     date_from: Optional[str] = None,
@@ -633,14 +645,10 @@ async def dashboard_stats(
     clients = await db.clients.find({}, {"_id": 0}).to_list(1000)
 
     def line_matches(ln):
-        if module and ln.get("module_id") != module:
-            return False
-        if crop and ln.get("crop") != crop:
-            return False
-        if quality and ln.get("quality") != quality:
-            return False
-        if size and ln.get("size") != size:
-            return False
+        if module and ln.get("module_id") != module: return False
+        if crop and ln.get("crop") != crop: return False
+        if quality and ln.get("quality") != quality: return False
+        if size and ln.get("size") != size: return False
         return True
 
     total_amount = 0.0
@@ -681,9 +689,7 @@ async def dashboard_stats(
 
     total_paid = sum(sum(p.get("amount", 0) for p in c.get("payments", [])) for c in clients)
     outstanding = total_amount - total_paid
-
     avg_per_crop = {c: (v["amount"] / v["kg"] if v["kg"] else 0) for c, v in by_crop.items()}
-
     client_name_map = {c["id"]: c["name"] for c in clients}
     top = sorted(per_client.items(), key=lambda x: x[1], reverse=True)[:5]
     top_clients_list = [
