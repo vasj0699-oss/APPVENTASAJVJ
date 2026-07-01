@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import api, { formatMXN, formatNum, formatDate, MODULE_IDS, exportToExcel } from "../lib/api";
-import { Eye, XCircle, Trash2, FileSpreadsheet } from "lucide-react";
+import { Eye, XCircle, Trash2, FileSpreadsheet, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
@@ -30,6 +30,7 @@ export default function Historial() {
       load();
     } catch (err) { toast.error(err?.response?.data?.detail || "Error"); }
   };
+
   const del = async (r) => {
     if (!window.confirm(`¿Eliminar borrador?`)) return;
     try {
@@ -144,6 +145,11 @@ export default function Historial() {
                   {r.status === "draft" && (
                     <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full font-semibold">BORRADOR</span>
                   )}
+                  {r.edited_at && r.status === "confirmed" && (
+                    <span className="text-[10px] px-2 py-0.5 bg-purple-100 text-purple-800 rounded-full font-medium">
+                      Modificada {formatDate(r.edited_at)}
+                    </span>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   {!isCancelled && (
@@ -151,8 +157,10 @@ export default function Historial() {
                       <Eye className="w-3 h-3" /> Ver PDF
                     </button>
                   )}
-                  {r.status === "draft" && (
-                    <button onClick={() => nav(`/remision/${r.id}`)} className="bg-[#deedc0] text-[#2d4a12] hover:bg-[#8fc050] hover:text-white rounded-md px-3 py-1.5 text-sm">Editar</button>
+                  {(r.status === "draft" || (isAdmin && r.status === "confirmed")) && (
+                    <button onClick={() => nav(`/remision/${r.id}`)} className="bg-[#deedc0] text-[#2d4a12] hover:bg-[#8fc050] hover:text-white rounded-md px-3 py-1.5 text-sm flex items-center gap-1">
+                      <Pencil className="w-3 h-3" /> Editar
+                    </button>
                   )}
                   {isAdmin && r.status === "confirmed" && (
                     <button onClick={() => cancel(r)} className="bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-600 hover:text-white rounded-md px-3 py-1.5 text-sm flex items-center gap-1">
@@ -169,7 +177,14 @@ export default function Historial() {
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead><tr className="text-[#4d5e42]">
-                    <th className="text-left px-2 py-1">Módulo</th><th className="text-left px-2 py-1">Cultivo</th><th className="text-left px-2 py-1">Calidad</th><th className="text-left px-2 py-1">Color</th><th className="text-left px-2 py-1">Tamaño</th><th className="text-right px-2 py-1">Cajas</th><th className="text-right px-2 py-1">Kg</th>{!isCapturista && (<><th className="text-right px-2 py-1">$/caja</th><th className="text-right px-2 py-1">Subtotal</th></>)}
+                    <th className="text-left px-2 py-1">Módulo</th>
+                    <th className="text-left px-2 py-1">Cultivo</th>
+                    <th className="text-left px-2 py-1">Calidad</th>
+                    <th className="text-left px-2 py-1">Color</th>
+                    <th className="text-left px-2 py-1">Tamaño</th>
+                    <th className="text-right px-2 py-1">Cajas</th>
+                    <th className="text-right px-2 py-1">Kg</th>
+                    {!isCapturista && (<><th className="text-right px-2 py-1">$/caja</th><th className="text-right px-2 py-1">Subtotal</th></>)}
                   </tr></thead>
                   <tbody>
                     {r.lines.map((l, i) => (
