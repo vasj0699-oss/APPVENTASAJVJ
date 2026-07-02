@@ -2,15 +2,14 @@ import React, { useEffect, useRef, useState } from "react";
 import api, { formatMXN, formatNum, formatDate } from "../lib/api";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Printer, Download, Save, Pencil, X } from "lucide-react";
+import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { useAuth } from "../lib/auth";
 import { toast } from "sonner";
 
-// ─── Orden de tamaños ────────────────────────────────────────────────
 const SIZE_ORDER = ["XL", "L", "M", "S", "C", "O"];
 const sizeIndex = (s) => { const i = SIZE_ORDER.indexOf(s); return i === -1 ? 99 : i; };
 
-// ─── Lógica de agrupación ────────────────────────────────────────────
 function groupLines(lines) {
   const byCultivo = {};
   for (const l of lines) {
@@ -53,14 +52,12 @@ function groupLines(lines) {
   });
 }
 
-// ─── Componente principal ────────────────────────────────────────────
 export default function PdfView() {
   const { id } = useParams();
   const nav = useNavigate();
   const { user } = useAuth();
   const isCapturista = user?.role === "capturista";
   const isAdmin = user?.role === "admin";
-
   const [rem, setRem] = useState(null);
   const [company, setCompany] = useState({});
   const [stats, setStats] = useState(null);
@@ -87,300 +84,70 @@ export default function PdfView() {
     finally { setSavingObs(false); }
   };
 
-  // ─── Generación PDF con jsPDF ─────────────────────────────────────
-  const download = () => {
-    if (!rem) return;
-    const grouped = groupLines(rem.lines || []);
-    const avgJito = stats?.avg_per_crop?.Jitomate || 0;
-    const avgPepi = stats?.avg_per_crop?.Pepino || 0;
-    const sigs = rem.signatures || {};
+  const download = async () => {
+    if (!ref.current) return;
+    const canvas = await html2canvas(ref.current, {
+      scale: 2,
+      backgroundColor: "#ffffff",
+      useCORS: true,
+    });
 
-    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-    const W = pdf.internal.pageSize.getWidth();
-    const H = pdf.internal.pageSize.getHeight();
-    const ML = 10; // margin left
-    const MR = 10; // margin right
-    const MT = 10; // margin top pages 2+
-    const MB = 10; // margin bottom
-    const CW = W - ML - MR; // content width
-    let y = 0;
+    const pdf = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const scale = canvas.width / imgWidth;
+    const pageHeightPx = pageHeight * scale;
 
-    // ─── Colores ─────────────────────────────────────────────────────
-    const C = {
-      headerBg:    [75, 88, 40],
-      headerText:  [255, 255, 255],
-      headerSub:   [200, 220, 170],
-      clientBg:    [250, 253, 245],
-      transBg:     [244, 248, 236],
-      border:      [222, 237, 192],
-      tableBg:     [43, 74, 18],
-      cultivoBg:   [192, 221, 151],
-      cultivoText: [39, 80, 10],
-      sectionBg:   [234, 243, 222],
-      sectionText: [59, 109, 17],
-      rowBg:       [255, 255, 255],
-      rowLine:     [222, 237, 192],
-      subtotalBg:  [212, 237, 170],
-      subtotalText:[39, 80, 10],
-      totalBg:     [151, 196, 89],
-      totalText:   [23, 52, 4],
-      grandBg:     [43, 74, 18],
-      grandText:   [255, 255, 255],
-      obsBg:       [244, 248, 236],
-      obsText:     [77, 94, 66],
-      textDark:    [22, 33, 11],
-      textMid:     [77, 94, 66],
-    };
-
-    // ─── Helpers ─────────────────────────────────────────────────────
-    const fr = (x, ry, w, h, color) => {
-      pdf.setFillColor(...color);
-      pdf.rect(x, ry, w, h, "F");
-    };
-    const dr = (x, ry, w, h, color) => {
-      pdf.setDrawColor(...color);
-      pdf.rect(x, ry, w, h, "S");
-    };
-    const line = (x1, y1, x2, y2, color = C.rowLine) => {
-      pdf.setDrawColor(...color);
-      pdf.line(x1, y1, x2, y2);
-    };
-    const txt = (str, x, ry, { size = 9, color = C.textDark, bold = false, align = "left", italic = false } = {}) => {
-      pdf.setFontSize(size);
-      pdf.setTextColor(...color);
-      pdf.setFont("helvetica", bold ? "bold" : italic ? "italic" : "normal");
-      pdf.text(String(str ?? ""), x, ry, { align });
-    };
-
-    // Columnas tabla
-    const isC = isCapturista;
-    const cols = {
-      mod:   { x: ML,      w: 16 },
-      cal:   { x: ML + 16, w: 22 },
-      cajas: { x: ML + 38, w: 20 },
-      kgc:   { x: ML + 58, w: 18 },
-      tkg:   { x: ML + 76, w: 24 },
-      prc:   { x: ML + 100, w: isC ? 0 : 24 },
-      sub:   { x: ML + 124, w: isC ? 0 : 26 },
-    };
-    const tableW = isC ? 100 : 150;
-    const tableRight = ML + tableW;
-
-    // Verificar espacio / nueva página
-    const needY = (needed, extra = 0) => {
-      if (y + needed > H - MB - extra) {
-        pdf.addPage();
-        y = MT;
-        return true;
-      }
-      return false;
-    };
-
-    // ─── CABECERA DOCUMENTO (solo página 1) ───────────────────────────
-    const drawDocHeader = () => {
-      fr(0, 0, W, 30, C.headerBg);
-      txt(company.name || "AJVJ Hidropónicos", ML, 8, { size: 12, color: C.headerText, bold: true });
-      txt(company.address || "—", ML, 13, { size: 8, color: C.headerSub });
-      txt(`Tel: ${company.phone || "—"} · RFC: ${company.rfc || "—"}`, ML, 17, { size: 8, color: C.headerSub });
-      if (!isC) txt(`Precio prom/kg — Jitomate: ${formatMXN(avgJito)} · Pepino: ${formatMXN(avgPepi)}`, ML, 21.5, { size: 8, color: C.headerSub });
-      txt("REMISIÓN", W - MR, 8, { size: 14, color: C.headerText, bold: true, align: "right" });
-      txt(rem.number || "BORRADOR", W - MR, 18, { size: 18, color: C.headerText, bold: true, align: "right" });
-      txt(formatDate(rem.date), W - MR, 24, { size: 9, color: C.headerSub, align: "right" });
-      y = 33;
-
-      // Cliente
-      fr(ML, y, CW, 18, C.clientBg);
-      dr(ML, y, CW, 18, C.border);
-      txt("CLIENTE", ML + 3, y + 5, { size: 7, color: C.textMid });
-      txt(rem.client_name || "—", ML + 3, y + 10, { size: 11, color: C.textDark, bold: true });
-      txt(`RFC: ${rem.client_rfc || "—"}`, ML + 3, y + 14, { size: 8, color: C.textMid });
-      txt(rem.client_address || "—", ML + 3, y + 18, { size: 8, color: C.textMid });
-      y += 22;
-
-      // Transporte
-      fr(ML, y, CW, 12, C.transBg);
-      dr(ML, y, CW, 12, C.border);
-      const c3 = CW / 3;
-      txt("DESTINO", ML + 3, y + 4, { size: 7, color: C.textMid });
-      txt(rem.destination || "—", ML + 3, y + 9.5, { size: 9, bold: true });
-      txt("CHOFER", ML + c3 + 3, y + 4, { size: 7, color: C.textMid });
-      txt(rem.driver_name || "—", ML + c3 + 3, y + 9.5, { size: 9, bold: true });
-      txt("PLACAS", ML + c3 * 2 + 3, y + 4, { size: 7, color: C.textMid });
-      txt(rem.license_plates || "—", ML + c3 * 2 + 3, y + 9.5, { size: 9, bold: true });
-      y += 16;
-    };
-
-    // ─── CABECERA TABLA ───────────────────────────────────────────────
-    const drawTableHeader = () => {
-      fr(ML, y, tableW, 7, C.tableBg);
-      txt("Módulo",   cols.mod.x + 2,  y + 5, { size: 8, color: C.headerText, bold: true });
-      txt("Calidad",  cols.cal.x + 2,  y + 5, { size: 8, color: C.headerText, bold: true });
-      txt("Cajas",    cols.cajas.x + cols.cajas.w - 2, y + 5, { size: 8, color: C.headerText, bold: true, align: "right" });
-      txt("Kg/caja",  cols.kgc.x + cols.kgc.w - 2, y + 5, { size: 8, color: C.headerText, bold: true, align: "right" });
-      txt("Total kg", cols.tkg.x + cols.tkg.w - 2, y + 5, { size: 8, color: C.headerText, bold: true, align: "right" });
-      if (!isC) {
-        txt("$/caja",   cols.prc.x + cols.prc.w - 2, y + 5, { size: 8, color: C.headerText, bold: true, align: "right" });
-        txt("Subtotal", tableRight - 2, y + 5, { size: 8, color: C.headerText, bold: true, align: "right" });
-      }
-      y += 7;
-    };
-
-    // ─── CONTEXTO PARA REPETIR EN NUEVA PÁGINA ───────────────────────
-    let ctxCultivo = null;
-    let ctxColorSize = null;
-
-    const redrawContextOnNewPage = () => {
-      drawTableHeader();
-      if (ctxCultivo) {
-        fr(ML, y, tableW, 6, C.cultivoBg);
-        txt(`↳ ${ctxCultivo.toUpperCase()} (continúa)`, ML + 3, y + 4.5, { size: 9, color: C.cultivoText, bold: true });
-        y += 6;
-      }
-      if (ctxColorSize) {
-        fr(ML, y, tableW, 5.5, C.sectionBg);
-        txt(`  ↳ ${ctxColorSize} (continúa)`, ML + 8, y + 4, { size: 8.5, color: C.sectionText });
-        y += 5.5;
-      }
-    };
-
-    const checkSpace = (needed) => {
-      if (needY(needed)) {
-        redrawContextOnNewPage();
-      }
-    };
-
-    // ─── DIBUJAR ENCABEZADO CULTIVO ───────────────────────────────────
-    const drawCultivo = (cultivo) => {
-      checkSpace(6);
-      fr(ML, y, tableW, 6, C.cultivoBg);
-      txt(cultivo.toUpperCase(), ML + 3, y + 4.5, { size: 10, color: C.cultivoText, bold: true });
-      y += 6;
-      ctxCultivo = cultivo;
-      ctxColorSize = null;
-    };
-
-    // ─── DIBUJAR ENCABEZADO COLOR·TAMAÑO ─────────────────────────────
-    const drawColorSize = (label) => {
-      checkSpace(5.5);
-      fr(ML, y, tableW, 5.5, C.sectionBg);
-      txt(label, ML + 8, y + 4, { size: 8.5, color: C.sectionText });
-      y += 5.5;
-      ctxColorSize = label;
-    };
-
-    // ─── DIBUJAR FILA DE DATOS ────────────────────────────────────────
-    const drawDataRow = (l) => {
-      checkSpace(5.5);
-      fr(ML, y, tableW, 5.5, C.rowBg);
-      line(ML, y + 5.5, tableRight, y + 5.5);
-      txt(l.module_id,                           cols.mod.x + 12,             y + 4, { size: 8 });
-      txt(l.quality,                             cols.cal.x + 2,              y + 4, { size: 8 });
-      txt(String(l.boxes),                       cols.cajas.x + cols.cajas.w - 2, y + 4, { size: 8, align: "right" });
-      txt(String(l.kg_per_box),                  cols.kgc.x + cols.kgc.w - 2,    y + 4, { size: 8, align: "right" });
-      txt(formatNum(l.boxes * l.kg_per_box),     cols.tkg.x + cols.tkg.w - 2,    y + 4, { size: 8, align: "right" });
-      if (!isC) {
-        txt(formatMXN(l.price_per_box),          cols.prc.x + cols.prc.w - 2, y + 4, { size: 8, align: "right" });
-        txt(formatMXN(l.boxes * l.price_per_box),tableRight - 2,              y + 4, { size: 8, bold: true, align: "right" });
-      }
-      y += 5.5;
-    };
-
-    // ─── DIBUJAR SUBTOTAL ─────────────────────────────────────────────
-    const drawSubtotal = (label, boxes, kg, amount) => {
-      checkSpace(5.5);
-      fr(ML, y, tableW, 5.5, C.subtotalBg);
-      txt(label, ML + 8, y + 4, { size: 8, color: C.subtotalText, italic: true });
-      txt(String(boxes), cols.cajas.x + cols.cajas.w - 2, y + 4, { size: 8, color: C.subtotalText, bold: true, align: "right" });
-      txt(formatNum(kg), cols.tkg.x + cols.tkg.w - 2, y + 4, { size: 8, color: C.subtotalText, bold: true, align: "right" });
-      if (!isC) txt(formatMXN(amount), tableRight - 2, y + 4, { size: 8, color: C.subtotalText, bold: true, align: "right" });
-      y += 5.5;
-    };
-
-    // ─── DIBUJAR TOTAL CULTIVO ────────────────────────────────────────
-    const drawCultivoTotal = (cultivo, boxes, kg, amount) => {
-      checkSpace(7);
-      fr(ML, y, tableW, 7, C.totalBg);
-      txt(`Total ${cultivo}`, ML + 3, y + 5, { size: 9, color: C.totalText, bold: true });
-      txt(String(boxes), cols.cajas.x + cols.cajas.w - 2, y + 5, { size: 9, color: C.totalText, bold: true, align: "right" });
-      txt(formatNum(kg), cols.tkg.x + cols.tkg.w - 2, y + 5, { size: 9, color: C.totalText, bold: true, align: "right" });
-      if (!isC) txt(formatMXN(amount), tableRight - 2, y + 5, { size: 9, color: C.totalText, bold: true, align: "right" });
-      y += 7;
-      ctxColorSize = null;
-    };
-
-    // ─── RENDERIZAR DOCUMENTO ─────────────────────────────────────────
-    drawDocHeader();
-    drawTableHeader();
-
-    for (const cultivoGroup of grouped) {
-      drawCultivo(cultivoGroup.cultivo);
-      for (const colorGroup of cultivoGroup.colorGroups) {
-        for (const sizeGroup of colorGroup.sizeGroups) {
-          const label = `${colorGroup.color === "N/A" ? "—" : colorGroup.color} · ${sizeGroup.size}`;
-          drawColorSize(label);
-          for (const l of sizeGroup.lines) drawDataRow(l);
-          drawSubtotal(`Subtotal ${label}`, sizeGroup.subtotalBoxes, sizeGroup.subtotalKg, sizeGroup.subtotalAmount);
+    const findSafeCut = (startY, targetY) => {
+      const ctx = canvas.getContext("2d");
+      const searchRange = Math.min(80, pageHeightPx * 0.05);
+      let bestY = targetY;
+      let mostWhite = -1;
+      for (
+        let y = Math.max(startY + 10, targetY - searchRange);
+        y <= Math.min(canvas.height - 1, targetY + searchRange);
+        y++
+      ) {
+        const data = ctx.getImageData(0, y, canvas.width, 1).data;
+        let whiteCount = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i] > 235 && data[i + 1] > 235 && data[i + 2] > 235) whiteCount++;
         }
+        if (whiteCount > mostWhite) { mostWhite = whiteCount; bestY = y; }
       }
-      drawCultivoTotal(cultivoGroup.cultivo, cultivoGroup.cultivoBoxes, cultivoGroup.cultivoKg, cultivoGroup.cultivoAmount);
+      return bestY;
+    };
+
+    let currentY = 0;
+    let isFirstPage = true;
+    while (currentY < canvas.height) {
+      if (!isFirstPage) pdf.addPage();
+      const targetCut = currentY + pageHeightPx;
+      const cutY = targetCut >= canvas.height ? canvas.height : findSafeCut(currentY, targetCut);
+      const sliceH = cutY - currentY;
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sliceH;
+      pageCanvas.getContext("2d").drawImage(canvas, 0, currentY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+      const sliceImgH = (sliceH / canvas.width) * imgWidth;
+      pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", 0, 0, imgWidth, sliceImgH);
+      currentY = cutY;
+      isFirstPage = false;
     }
 
-    // ─── TOTALES GENERALES ────────────────────────────────────────────
-    checkSpace(10);
-    fr(ML, y, tableW, 10, C.grandBg);
-    txt("Cajas:", ML + 3, y + 6.5, { size: 9, color: C.grandText });
-    txt(String(rem.totals?.boxes || 0), ML + 18, y + 6.5, { size: 9, color: C.grandText, bold: true });
-    txt("Total kg:", ML + tableW / 3, y + 6.5, { size: 9, color: C.grandText });
-    txt(formatNum(rem.totals?.total_kg || 0), ML + tableW / 3 + 22, y + 6.5, { size: 9, color: C.grandText, bold: true });
-    if (!isC) {
-      txt("IMPORTE TOTAL:", ML + tableW * 2 / 3, y + 6.5, { size: 9, color: C.grandText });
-      txt(formatMXN(rem.totals?.total_amount || 0), tableRight - 2, y + 6.5, { size: 10, color: C.grandText, bold: true, align: "right" });
-    }
-    y += 14;
-
-    // ─── OBSERVACIONES ────────────────────────────────────────────────
-    if (rem.observations) {
-      checkSpace(10);
-      fr(ML, y, tableW, 10, C.obsBg);
-      txt(`Observaciones: ${rem.observations}`, ML + 3, y + 6.5, { size: 8, color: C.obsText, italic: true });
-      y += 14;
-    }
-
-    // ─── FIRMAS ───────────────────────────────────────────────────────
-    checkSpace(38);
-    y += 6;
-    const sigW = tableW / 3;
-    const sigRows = [
-      { key: "chofer",    label: "CHOFER",    fallback: rem.driver_name },
-      { key: "almacen",   label: "ALMACÉN",   fallback: "" },
-      { key: "estibador", label: "ESTIBADOR", fallback: "" },
-    ];
-    for (let i = 0; i < 3; i++) {
-      const sx = ML + sigW * i;
-      const { key, label, fallback } = sigRows[i];
-      const sig = sigs[key];
-      const sigName = sig?.name || fallback || "";
-      if (sig?.image) {
-        try { pdf.addImage(sig.image, "PNG", sx + 4, y, sigW - 8, 18, "", "FAST"); } catch (e) {}
-      }
-      pdf.setDrawColor(80, 80, 80);
-      pdf.line(sx + 4, y + 20, sx + sigW - 4, y + 20);
-      if (sigName) txt(sigName, sx + sigW / 2, y + 25, { size: 8, bold: true, align: "center" });
-      txt(label, sx + sigW / 2, y + 30, { size: 8, color: C.textMid, align: "center" });
-    }
-
-    pdf.save(`remision-${rem.number || rem.id.slice(0, 6)}${isC ? "-comprobante" : ""}.pdf`);
+    pdf.save(`remision-${rem.number || rem.id.slice(0, 6)}${isCapturista ? "-comprobante" : ""}.pdf`);
   };
 
   if (!rem) return <div className="p-8">Cargando…</div>;
   const grouped = groupLines(rem.lines || []);
+  const avgJito = stats?.avg_per_crop?.Jitomate || 0;
+  const avgPepi = stats?.avg_per_crop?.Pepino || 0;
   const sigs = rem.signatures || {};
 
   return (
     <div className="bg-[#f4f8ec] min-h-screen p-4 md:p-8" data-testid="pdf-view-page">
       <div className="max-w-4xl mx-auto">
-
-        {/* Botones */}
         <div className="flex justify-between mb-4 flex-wrap gap-3">
           <button onClick={() => nav(-1)} className="bg-white border border-[#deedc0] text-[#2d4a12] hover:bg-[#deedc0] rounded-md px-4 py-2 flex items-center gap-2">
             <ArrowLeft className="w-4 h-4" /> Volver
@@ -395,14 +162,13 @@ export default function PdfView() {
           </div>
         </div>
 
-        {/* Vista previa en pantalla */}
         <div ref={ref} className="pdf-page shadow-lg mx-auto" data-testid="pdf-content">
           <div className="pdf-header">
             <div>
               <div style={{ fontSize: 14, fontWeight: 700 }}>{company.name || "AJVJ Hidropónicos"}</div>
               <div style={{ fontSize: 9, marginTop: 4, opacity: 0.9 }}>{company.address || "—"}</div>
               <div style={{ fontSize: 9, opacity: 0.9 }}>Tel: {company.phone || "—"} · RFC: {company.rfc || "—"}</div>
-              {!isCapturista && <div style={{ fontSize: 9, marginTop: 4, opacity: 0.9 }}>Precio prom/kg — Jitomate: {formatMXN(stats?.avg_per_crop?.Jitomate || 0)} · Pepino: {formatMXN(stats?.avg_per_crop?.Pepino || 0)}</div>}
+              {!isCapturista && <div style={{ fontSize: 9, marginTop: 4, opacity: 0.9 }}>Precio prom/kg — Jitomate: {formatMXN(avgJito)} · Pepino: {formatMXN(avgPepi)}</div>}
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: 2 }}>REMISIÓN</div>
@@ -442,7 +208,9 @@ export default function PdfView() {
               {grouped.map((cultivoGroup) => (
                 <React.Fragment key={cultivoGroup.cultivo}>
                   <tr style={{ background: "#C0DD97" }}>
-                    <td colSpan={isCapturista ? 5 : 7} style={{ padding: "6px 8px", fontWeight: 600, fontSize: 11, color: "#27500A" }}>{cultivoGroup.cultivo.toUpperCase()}</td>
+                    <td colSpan={isCapturista ? 5 : 7} style={{ padding: "6px 8px", fontWeight: 600, fontSize: 11, color: "#27500A", letterSpacing: "0.03em" }}>
+                      {cultivoGroup.cultivo.toUpperCase()}
+                    </td>
                   </tr>
                   {cultivoGroup.colorGroups.map((colorGroup) =>
                     colorGroup.sizeGroups.map((sizeGroup) => (
@@ -505,7 +273,6 @@ export default function PdfView() {
           </div>
         </div>
 
-        {/* Editor observaciones — solo admin */}
         {isAdmin && (
           <div className="mt-4 card-surface p-4">
             <div className="flex items-center justify-between mb-2">
